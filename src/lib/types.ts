@@ -13,8 +13,35 @@ export interface Lead {
   longitude: number | null;
 }
 
+/**
+ * Stable identity for a lead used to dedupe across paginated fetches.
+ * Coordinates are most reliable; otherwise fall back to name + address.
+ */
+export function leadKey(lead: Lead): string {
+  if (lead.latitude != null && lead.longitude != null) {
+    return `geo:${lead.latitude.toFixed(5)},${lead.longitude.toFixed(5)}`;
+  }
+  return `na:${lead.name.toLowerCase()}|${lead.address.toLowerCase()}`;
+}
+
+/** Append `incoming` to `existing`, skipping any leads already present. */
+export function mergeLeads(existing: Lead[], incoming: Lead[]): Lead[] {
+  const seen = new Set(existing.map(leadKey));
+  const merged = [...existing];
+  for (const lead of incoming) {
+    const key = leadKey(lead);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(lead);
+    }
+  }
+  return merged;
+}
+
 export interface ExtractResponse {
   query: string;
+  page: number;
   count: number;
   leads: Lead[];
+  hasMore: boolean;
 }

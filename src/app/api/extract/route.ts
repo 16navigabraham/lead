@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_PAGES } from "@/lib/config";
 
 export const runtime = "nodejs";
 
@@ -48,9 +49,15 @@ export async function POST(request: Request) {
   }
 
   let query = "";
+  let page = 1;
   try {
     const body = await request.json();
     query = typeof body?.query === "string" ? body.query.trim() : "";
+    // Clamp page to a sane range so we never hammer the provider.
+    const requested = Number(body?.page);
+    if (Number.isFinite(requested)) {
+      page = Math.min(Math.max(Math.trunc(requested), 1), MAX_PAGES);
+    }
   } catch {
     return NextResponse.json(
       { error: "Invalid request body. Expected JSON with a `query` field." },
@@ -72,7 +79,7 @@ export async function POST(request: Request) {
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ q: query }),
+      body: JSON.stringify({ q: query, page }),
       // Always hit the live API; results should reflect the current query.
       cache: "no-store",
     });
@@ -109,7 +116,17 @@ export async function POST(request: Request) {
       longitude: typeof place.longitude === "number" ? place.longitude : null,
     }));
 
-    return NextResponse.json({ query, count: leads.length, leads });
+    // More results likely exist if the provider filled the page AND we
+    // haven't yet reached our own page ceiling.
+    const hasMore = places.length > 0 && page < MAX_PAGES;
+
+    return NextResponse.json({
+      query,
+      page,
+      count: leads.length,
+      leads,
+      hasMore,
+    });
   } catch {
     return NextResponse.json(
       { error: "Failed to reach the lead provider. Please try again." },
