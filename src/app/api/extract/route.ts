@@ -49,6 +49,8 @@ interface SerperPlace {
 
 interface SerperResponse {
   places?: SerperPlace[];
+  /** Map center used for the search, e.g. "@19.02,72.86,12z". Required to paginate. */
+  ll?: string;
 }
 
 export async function POST(request: Request) {
@@ -63,9 +65,12 @@ export async function POST(request: Request) {
 
   let query = "";
   let page = 1;
+  // Map center from a prior page-1 response; required by /maps to paginate.
+  let ll = "";
   try {
     const body = await request.json();
     query = typeof body?.query === "string" ? body.query.trim() : "";
+    ll = typeof body?.ll === "string" ? body.ll.trim() : "";
     // Clamp page to a sane range so we never hammer the provider.
     const requested = Number(body?.page);
     if (Number.isFinite(requested)) {
@@ -85,14 +90,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // /maps requires the map center ("ll") to page past the first results.
+  if (page > 1 && !ll) {
+    return NextResponse.json(
+      { error: "Pagination requires the map center from the first page." },
+      { status: 400 }
+    );
+  }
+
   try {
+    const payload: Record<string, unknown> = { q: query, page };
+    if (ll) payload.ll = ll;
+
     const upstream = await fetch("https://google.serper.dev/maps", {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ q: query, page }),
+      body: JSON.stringify(payload),
       // Always hit the live API; results should reflect the current query.
       cache: "no-store",
     });
@@ -145,6 +161,9 @@ export async function POST(request: Request) {
       count: leads.length,
       leads,
       hasMore,
+      // Echo the map center (from this response, or the one passed in) so the
+      // client can request subsequent pages.
+      ll: data.ll || ll || "",
     });
   } catch {
     return NextResponse.json(

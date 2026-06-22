@@ -25,22 +25,27 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [noNewNotice, setNoNewNotice] = useState(false);
+  // Map center returned by page 1; required by the provider to paginate.
+  const [ll, setLl] = useState("");
 
-  // Single fetch for a given query + page. Returns the parsed payload.
-  const fetchPage = useCallback(async (q: string, p: number) => {
-    const res = await fetch("/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: q, page: p }),
-    });
-    const data = (await res.json()) as Partial<ExtractResponse> & {
-      error?: string;
-    };
-    if (!res.ok) {
-      throw new Error(data.error || "Something went wrong. Please try again.");
-    }
-    return data;
-  }, []);
+  // Single fetch for a given query + page. `mapLl` is required for page > 1.
+  const fetchPage = useCallback(
+    async (q: string, p: number, mapLl?: string) => {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q, page: p, ll: mapLl ?? "" }),
+      });
+      const data = (await res.json()) as Partial<ExtractResponse> & {
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "Something went wrong. Please try again.");
+      }
+      return data;
+    },
+    []
+  );
 
   // Fresh search: resets the list to page 1.
   const handleExtract = useCallback(async () => {
@@ -58,9 +63,11 @@ export default function Home() {
       const data = await fetchPage(trimmed, 1);
       setLeads(data.leads ?? []);
       setHasMore(Boolean(data.hasMore));
+      setLl(data.ll ?? "");
     } catch (err) {
       setLeads([]);
       setHasMore(false);
+      setLl("");
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
       setLoading(false);
@@ -83,11 +90,18 @@ export default function Home() {
       let keepGoing = true;
       // Work off a local snapshot so dedupe math is synchronous and accurate.
       let current = leads;
+      let mapLl = ll;
 
       // Try up to 3 successive pages to find genuinely new results.
       for (let attempt = 0; attempt < 3 && keepGoing; attempt++) {
-        const data = await fetchPage(submittedQuery, nextPage);
+        const data = await fetchPage(submittedQuery, nextPage, mapLl);
         const incoming = data.leads ?? [];
+
+        // Keep the freshest map center for the following request.
+        if (data.ll) {
+          mapLl = data.ll;
+          setLl(data.ll);
+        }
 
         let merged = mergeLeads(current, incoming);
 
@@ -118,7 +132,7 @@ export default function Home() {
     } finally {
       setLoadingMore(false);
     }
-  }, [submittedQuery, page, loadingMore, loading, leads, fetchPage]);
+  }, [submittedQuery, page, loadingMore, loading, leads, ll, fetchPage]);
 
   const handleDownload = useCallback(() => {
     if (leads.length === 0) return;

@@ -50,4 +50,6 @@ export interface ExtractResponse {
   count: number;
   leads: Lead[];
   hasMore: boolean;
+  /** Map center to reuse when paginating subsequent pages. */
+  ll: string;
 }
