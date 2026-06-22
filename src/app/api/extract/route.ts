@@ -18,9 +18,19 @@ export interface Lead {
   category: string;
   latitude: number | null;
   longitude: number | null;
+  /** Photo thumbnail URL ("" when absent). */
+  thumbnail: string;
+  /** Opening hours keyed by day, or null when absent. */
+  hours: Record<string, string> | null;
+  /** Google Maps CID for a precise place link ("" when absent). */
+  cid: string;
 }
 
-/** Raw place object as returned by the Serper Places endpoint (partial). */
+/**
+ * Raw place object as returned by the Serper Maps endpoint (partial).
+ * We use /maps (not /places) because /places omits website, phone, and
+ * often the address — /maps returns the full business record.
+ */
 interface SerperPlace {
   title?: string;
   phoneNumber?: string;
@@ -32,6 +42,9 @@ interface SerperPlace {
   type?: string;
   latitude?: number;
   longitude?: number;
+  thumbnailUrl?: string;
+  openingHours?: Record<string, string>;
+  cid?: string;
 }
 
 interface SerperResponse {
@@ -73,7 +86,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const upstream = await fetch("https://google.serper.dev/places", {
+    const upstream = await fetch("https://google.serper.dev/maps", {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -114,6 +127,12 @@ export async function POST(request: Request) {
       category: place.category?.trim() || place.type?.trim() || "—",
       latitude: typeof place.latitude === "number" ? place.latitude : null,
       longitude: typeof place.longitude === "number" ? place.longitude : null,
+      thumbnail: place.thumbnailUrl?.trim() || "",
+      hours:
+        place.openingHours && Object.keys(place.openingHours).length > 0
+          ? place.openingHours
+          : null,
+      cid: place.cid?.trim() || "",
     }));
 
     // More results likely exist if the provider filled the page AND we

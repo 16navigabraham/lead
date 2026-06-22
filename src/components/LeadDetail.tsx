@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { Lead } from "@/lib/types";
 import {
+  ClockIcon,
   CloseIcon,
   ExternalLinkIcon,
   GlobeIcon,
@@ -31,6 +32,8 @@ function osmEmbedUrl(lat: number, lon: number): string {
 }
 
 function mapsLink(lead: Lead): string {
+  // CID resolves to the exact Google Maps listing — most precise option.
+  if (lead.cid) return `https://www.google.com/maps?cid=${lead.cid}`;
   if (lead.latitude != null && lead.longitude != null) {
     return `https://www.google.com/maps/search/?api=1&query=${lead.latitude}%2C${lead.longitude}`;
   }
@@ -135,6 +138,20 @@ export function LeadDetail({ lead, onClose }: LeadDetailProps) {
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto">
+              {/* Photo */}
+              {lead.thumbnail && (
+                <div className="px-6 pt-6">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={lead.thumbnail}
+                    alt={`Photo of ${lead.name}`}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="h-40 w-full rounded-xl border border-neutral-800/80 object-cover"
+                  />
+                </div>
+              )}
+
               {/* Map card */}
               <div className="px-6 pt-6">
                 <div className="relative overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-900/40">
@@ -198,6 +215,27 @@ export function LeadDetail({ lead, onClose }: LeadDetailProps) {
                     <span className="text-neutral-600">Not listed</span>
                   )}
                 </DetailRow>
+
+                {lead.hours && (
+                  <DetailRow
+                    icon={<ClockIcon className="h-4 w-4" />}
+                    label="Opening hours"
+                  >
+                    <dl className="space-y-1">
+                      {Object.entries(lead.hours).map(([day, time]) => (
+                        <div
+                          key={day}
+                          className="flex justify-between gap-4 text-[13px]"
+                        >
+                          <dt className="text-neutral-400">{day}</dt>
+                          <dd className="tabular-nums text-neutral-200">
+                            {time}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </DetailRow>
+                )}
               </div>
             </div>
 

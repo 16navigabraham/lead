@@ -11,6 +11,12 @@ export interface Lead {
   /** Geo coordinates for the map card; null when the provider omits them. */
   latitude: number | null;
   longitude: number | null;
+  /** Photo thumbnail URL ("" when absent). */
+  thumbnail: string;
+  /** Opening hours keyed by day, or null when absent. */
+  hours: Record<string, string> | null;
+  /** Google Maps CID for a precise place link ("" when absent). */
+  cid: string;
 }
 
 /**
